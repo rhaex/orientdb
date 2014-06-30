@@ -8,4 +8,6 @@ public interface ODocumentSerializer {
 
   public void deserialize(ODocument document, BytesContainer bytes);
 
+  public void partialDeserialize(ODocument iRecord, BytesContainer container, String[] iFields);
+
 }

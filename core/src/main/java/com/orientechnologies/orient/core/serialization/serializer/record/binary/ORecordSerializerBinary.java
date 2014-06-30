@@ -30,7 +30,10 @@ public class ORecordSerializerBinary implements ORecordSerializer {
 
     BytesContainer container = new BytesContainer(iSource);
     container.skip(1);
-    serializerByVersion[iSource[0]].deserialize((ODocument) iRecord, container);
+    if (iFields != null && iFields.length > 0)
+      serializerByVersion[iSource[0]].partialDeserialize((ODocument) iRecord, container, iFields);
+    else
+      serializerByVersion[iSource[0]].deserialize((ODocument) iRecord, container);
     return iRecord;
   }
 

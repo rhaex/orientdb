@@ -1,5 +1,15 @@
 package com.orientechnologies.orient.core.serialization.serializer.record.binary;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
 import com.orientechnologies.common.collection.OMultiCollectionIterator;
 import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.common.serialization.types.ODecimalSerializer;
@@ -28,16 +38,6 @@ import com.orientechnologies.orient.core.serialization.ODocumentSerializable;
 import com.orientechnologies.orient.core.serialization.OSerializableStream;
 import com.orientechnologies.orient.core.type.tree.OMVRBTreeRIDSet;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Date;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
-
 public class ORecordSerializerBinaryV0 implements ODocumentSerializer {
 
   private static final long MILLISEC_PER_DAY = 86400000;
@@ -49,7 +49,52 @@ public class ORecordSerializerBinaryV0 implements ODocumentSerializer {
   }
 
   @Override
-  public void deserialize(final ODocument document,final BytesContainer bytes) {
+  public void partialDeserialize(ODocument document, BytesContainer container, String[] iFields) {
+    container.skip(OVarIntSerializer.readAsInteger(container));
+    int startOffset = container.offset;
+    field_it: for (String field : iFields) {
+      if (field.startsWith("@"))
+        continue;
+      byte[] filedBytes = field.getBytes(utf8);
+      int size;
+      search: while ((size = OVarIntSerializer.readAsInteger(container)) != 0) {
+        if (size == filedBytes.length) {
+          for (int i = 0; i < size; i++) {
+            if (filedBytes[i] != container.bytes[container.offset + i]) {
+              container.skip(size + 1 + OIntegerSerializer.INT_SIZE);
+              continue search;
+            }
+          }
+          container.skip(size);
+          int valuePos = OIntegerSerializer.INSTANCE.deserialize(container.bytes, container.offset);
+          container.skip(OIntegerSerializer.INT_SIZE);
+          OType type = readOType(container);
+          // TODO:This is wrong should not stay here
+          if (document.containsField(field))
+            continue;
+          if (valuePos != 0) {
+            container.offset = valuePos;
+            Object value = readSingleValue(container, type, document);
+            // TODO:This is wrong should not stay here
+            if (document.fieldType(field) != null || OType.LINK == type)
+              document.field(field, value);
+            else
+              document.field(field, value, type);
+          } else
+            document.field(field, (Object) null);
+          container.offset = startOffset;
+          continue field_it;
+        } else
+          container.skip(size + 1 + OIntegerSerializer.INT_SIZE);
+      }
+      container.offset = startOffset;
+      // throw new ODatabaseException("not found field:" + field);
+    }
+
+  }
+
+  @Override
+  public void deserialize(final ODocument document, final BytesContainer bytes) {
     String className = readString(bytes);
     if (className.length() != 0)
       document.setClassNameIfExists(className);
@@ -683,7 +728,6 @@ public class ORecordSerializerBinaryV0 implements ODocumentSerializer {
     return value;
   }
 
-  
   private int writeString(final BytesContainer bytes, final String toWrite) {
     final byte[] nameBytes = toWrite.getBytes(utf8);
     final int pointer = OVarIntSerializer.write(bytes, nameBytes.length);
