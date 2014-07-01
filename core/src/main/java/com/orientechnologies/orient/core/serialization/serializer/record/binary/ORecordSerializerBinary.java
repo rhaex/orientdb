@@ -1,11 +1,11 @@
 package com.orientechnologies.orient.core.serialization.serializer.record.binary;
 
-import java.util.Set;
-
 import com.orientechnologies.orient.core.record.ORecordInternal;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.serialization.serializer.record.ORecordSerializer;
 import com.orientechnologies.orient.core.serialization.serializer.record.OSerializationSetThreadLocal;
+
+import java.util.Set;
 
 public class ORecordSerializerBinary implements ORecordSerializer {
 

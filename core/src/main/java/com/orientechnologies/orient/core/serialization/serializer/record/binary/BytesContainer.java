@@ -1,6 +1,5 @@
 package com.orientechnologies.orient.core.serialization.serializer.record.binary;
 
-
 public class BytesContainer {
 
   public byte[] bytes;
