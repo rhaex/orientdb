@@ -19,21 +19,6 @@
  */
 package com.orientechnologies.orient.core.command.script;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.StringReader;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import javax.script.Bindings;
-import javax.script.Compilable;
-import javax.script.CompiledScript;
-import javax.script.ScriptContext;
-import javax.script.ScriptEngine;
-import javax.script.ScriptException;
-
 import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.common.concur.ONeedRetryException;
 import com.orientechnologies.common.concur.resource.OPartitionedObjectPool;
@@ -54,6 +39,20 @@ import com.orientechnologies.orient.core.sql.OCommandSQL;
 import com.orientechnologies.orient.core.sql.OCommandSQLParsingException;
 import com.orientechnologies.orient.core.storage.ORecordDuplicatedException;
 import com.orientechnologies.orient.core.tx.OTransaction;
+
+import javax.script.Bindings;
+import javax.script.Compilable;
+import javax.script.CompiledScript;
+import javax.script.ScriptContext;
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Executes Script Commands.
@@ -164,105 +163,110 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
 
     for (int retry = 1; retry <= maxRetry; retry++) {
       try {
-        int txBegunAtLine = -1;
-        int txBegunAtPart = -1;
-        lastResult = null;
+        try {
+          int txBegunAtLine = -1;
+          int txBegunAtPart = -1;
+          lastResult = null;
 
-        final BufferedReader reader = new BufferedReader(new StringReader(iText));
+          final BufferedReader reader = new BufferedReader(new StringReader(iText));
 
-        int line = 0;
-        int linePart = 0;
-        String lastLine;
-        boolean txBegun = false;
+          int line = 0;
+          int linePart = 0;
+          String lastLine;
+          boolean txBegun = false;
 
-        for (; line < txBegunAtLine; ++line)
-          // SKIP PREVIOUS COMMAND AND JUMP TO THE BEGIN IF ANY
-          reader.readLine();
+          for (; line < txBegunAtLine; ++line)
+            // SKIP PREVIOUS COMMAND AND JUMP TO THE BEGIN IF ANY
+            reader.readLine();
 
-        for (; (lastLine = reader.readLine()) != null; ++line) {
-          lastLine = lastLine.trim();
+          for (; (lastLine = reader.readLine()) != null; ++line) {
+            lastLine = lastLine.trim();
 
-          final List<String> lineParts = OStringSerializerHelper.smartSplit(lastLine, ';');
+            final List<String> lineParts = OStringSerializerHelper.smartSplit(lastLine, ';');
 
-          if (line == txBegunAtLine)
-            // SKIP PREVIOUS COMMAND PART AND JUMP TO THE BEGIN IF ANY
-            linePart = txBegunAtPart;
-          else
-            linePart = 0;
+            if (line == txBegunAtLine)
+              // SKIP PREVIOUS COMMAND PART AND JUMP TO THE BEGIN IF ANY
+              linePart = txBegunAtPart;
+            else
+              linePart = 0;
 
-          for (; linePart < lineParts.size(); ++linePart) {
-            final String lastCommand = lineParts.get(linePart);
+            for (; linePart < lineParts.size(); ++linePart) {
+              final String lastCommand = lineParts.get(linePart);
 
-            if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "let ")) {
-              lastResult = executeLet(lastCommand, db);
+              if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "let ")) {
+                lastResult = executeLet(lastCommand, db);
 
-            } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "begin")) {
+              } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "begin")) {
 
-              if (txBegun)
-                throw new OCommandSQLParsingException("Transaction already begun");
+                if (txBegun)
+                  throw new OCommandSQLParsingException("Transaction already begun");
 
-              if (db.getTransaction().isActive())
-                // COMMIT ANY ACTIVE TX
+                if (db.getTransaction().isActive())
+                  // COMMIT ANY ACTIVE TX
+                  db.commit();
+
+                txBegun = true;
+                txBegunAtLine = line;
+                txBegunAtPart = linePart;
+
+                db.begin();
+
+                if (lastCommand.length() > "begin ".length()) {
+                  String next = lastCommand.substring("begin ".length()).trim();
+                  if (OStringSerializerHelper.startsWithIgnoreCase(next, "isolation ")) {
+                    next = next.substring("isolation ".length()).trim();
+                    db.getTransaction().setIsolationLevel(OTransaction.ISOLATION_LEVEL.valueOf(next.toUpperCase()));
+                  }
+                }
+
+              } else if ("rollback".equalsIgnoreCase(lastCommand)) {
+
+                if (!txBegun)
+                  throw new OCommandSQLParsingException("Transaction not begun");
+
+                db.rollback();
+
+                txBegun = false;
+                txBegunAtLine = -1;
+                txBegunAtPart = -1;
+
+              } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "commit")) {
+                if (txBegunAtLine < 0)
+                  throw new OCommandSQLParsingException("Transaction not begun");
+
+                if (retry == 1 && lastCommand.length() > "commit ".length()) {
+                  // FIRST CYCLE: PARSE RETRY TIMES OVERWRITING DEFAULT = 1
+                  String next = lastCommand.substring("commit ".length()).trim();
+                  if (OStringSerializerHelper.startsWithIgnoreCase(next, "retry ")) {
+                    next = next.substring("retry ".length()).trim();
+                    maxRetry = Integer.parseInt(next);
+                  }
+                }
+
                 db.commit();
 
-              txBegun = true;
-              txBegunAtLine = line;
-              txBegunAtPart = linePart;
+                txBegun = false;
+                txBegunAtLine = -1;
+                txBegunAtPart = -1;
 
-              db.begin();
+              } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "sleep ")) {
+                executeSleep(lastCommand);
 
-              if (lastCommand.length() > "begin ".length()) {
-                String next = lastCommand.substring("begin ".length()).trim();
-                if (OStringSerializerHelper.startsWithIgnoreCase(next, "isolation ")) {
-                  next = next.substring("isolation ".length()).trim();
-                  db.getTransaction().setIsolationLevel(OTransaction.ISOLATION_LEVEL.valueOf(next.toUpperCase()));
-                }
-              }
+              } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "return ")) {
+                lastResult = executeReturn(lastCommand, lastResult);
 
-            } else if ("rollback".equalsIgnoreCase(lastCommand)) {
+                // END OF SCRIPT
+                break;
 
-              if (!txBegun)
-                throw new OCommandSQLParsingException("Transaction not begun");
-
-              db.rollback();
-
-              txBegun = false;
-              txBegunAtLine = -1;
-              txBegunAtPart = -1;
-
-            } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "commit")) {
-              if (txBegunAtLine < 0)
-                throw new OCommandSQLParsingException("Transaction not begun");
-
-              if (retry == 1 && lastCommand.length() > "commit ".length()) {
-                // FIRST CYCLE: PARSE RETRY TIMES OVERWRITING DEFAULT = 1
-                String next = lastCommand.substring("commit ".length()).trim();
-                if (OStringSerializerHelper.startsWithIgnoreCase(next, "retry ")) {
-                  next = next.substring("retry ".length()).trim();
-                  maxRetry = Integer.parseInt(next);
-                }
-              }
-
-              db.commit();
-
-              txBegun = false;
-              txBegunAtLine = -1;
-              txBegunAtPart = -1;
-
-            } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "sleep ")) {
-              executeSleep(lastCommand);
-
-            } else if (OStringSerializerHelper.startsWithIgnoreCase(lastCommand, "return ")) {
-              lastResult = executeReturn(lastCommand, lastResult);
-
-              // END OF SCRIPT
-              break;
-
-            } else if (lastCommand != null && lastCommand.length() > 0)
-              lastResult = executeCommand(lastCommand, db);
+              } else if (lastCommand != null && lastCommand.length() > 0)
+                lastResult = executeCommand(lastCommand, db);
+            }
           }
+        } catch (RuntimeException ex) {
+          if (db.getTransaction().isActive())
+            db.rollback();
+          throw ex;
         }
-
         // COMPLETED
         break;
 
@@ -394,5 +398,10 @@ public class OCommandExecutorScript extends OCommandExecutorAbstract implements 
     // PUT THE RESULT INTO THE CONTEXT
     getContext().setVariable(variable, lastResult);
     return lastResult;
+  }
+
+  @Override
+  public QUORUM_TYPE getQuorumType() {
+    return QUORUM_TYPE.WRITE;
   }
 }

@@ -36,6 +36,7 @@ import com.orientechnologies.orient.core.id.ORecordId;
 import com.orientechnologies.orient.core.metadata.schema.OClass;
 import com.orientechnologies.orient.core.metadata.schema.OSchemaShared;
 import com.orientechnologies.orient.core.metadata.schema.OType;
+import com.orientechnologies.orient.core.metadata.security.OSecurityNull;
 import com.orientechnologies.orient.core.record.impl.ODocument;
 import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
@@ -387,11 +388,11 @@ public class OIndexManagerShared extends OIndexManagerAbstract implements OIndex
 
         for (OIndex<?> oldIndex : oldIndexes.values())
           try {
-            OLogManager.instance().warn(this, "Index %s was not found after reload and will be removed", oldIndex.getName());
+            OLogManager.instance().warn(this, "Index '%s' was not found after reload and will be removed", oldIndex.getName());
 
             oldIndex.delete();
           } catch (Exception e) {
-            OLogManager.instance().error(this, "Error on deletion of index %s", e, oldIndex.getName());
+            OLogManager.instance().error(this, "Error on deletion of index '%s'", e, oldIndex.getName());
           }
 
         if (configUpdated) {
@@ -568,7 +569,7 @@ public class OIndexManagerShared extends OIndexManagerAbstract implements OIndex
 
     private void setUpDatabase() {
       newDb.resetInitialization();
-      newDb.setProperty(ODatabase.OPTIONS.SECURITY.toString(), Boolean.FALSE);
+      newDb.setProperty(ODatabase.OPTIONS.SECURITY.toString(), OSecurityNull.class);
       newDb.open("admin", "nopass");
 
       ODatabaseRecordThreadLocal.INSTANCE.set(newDb);

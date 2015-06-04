@@ -19,13 +19,6 @@
  */
 package com.orientechnologies.orient.server.network.protocol.binary;
 
-import java.io.IOException;
-import java.io.ObjectOutputStream;
-import java.net.Socket;
-import java.net.SocketException;
-import java.util.*;
-import java.util.Map.Entry;
-
 import com.orientechnologies.common.collection.OMultiValue;
 import com.orientechnologies.common.concur.lock.OLockException;
 import com.orientechnologies.common.exception.OException;
@@ -98,7 +91,20 @@ import com.orientechnologies.orient.server.distributed.ODistributedServerManager
 import com.orientechnologies.orient.server.network.OServerNetworkListener;
 import com.orientechnologies.orient.server.plugin.OServerPlugin;
 import com.orientechnologies.orient.server.plugin.OServerPluginHelper;
+import com.orientechnologies.orient.server.security.OSecurityServerUser;
 import com.orientechnologies.orient.server.tx.OTransactionOptimisticProxy;
+
+import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.net.Socket;
+import java.net.SocketException;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.UUID;
 
 public class ONetworkProtocolBinary extends OBinaryNetworkProtocolAbstract {
   protected OClientConnection connection;
@@ -192,7 +198,7 @@ public class ONetworkProtocolBinary extends OBinaryNetworkProtocolAbstract {
             final ODatabaseDocumentTx database = new ODatabaseDocumentTx(type + ":" + db);
             if (connection.data.serverUser) {
               database.resetInitialization();
-              database.setProperty(ODatabase.OPTIONS.SECURITY.toString(), Boolean.FALSE);
+              database.setProperty(ODatabase.OPTIONS.SECURITY.toString(), OSecurityServerUser.class);
               database.open(connection.data.serverUsername, null);
             } else
               database.open(token);
@@ -458,14 +464,14 @@ public class ONetworkProtocolBinary extends OBinaryNetworkProtocolAbstract {
       if (connection.serverUser == null)
         throw new OSecurityAccessException("Server user not authenticated.");
 
-      if (!server.authenticate(connection.serverUser.name, null, iResource))
+      if (!server.isAllowed(connection.serverUser.name, iResource))
         throw new OSecurityAccessException("User '" + connection.serverUser.name + "' cannot access to the resource [" + iResource
             + "]. Use another server user or change permission in the file config/orientdb-server-config.xml");
     } else {
       if (!connection.data.serverUser)
         throw new OSecurityAccessException("Server user not authenticated.");
 
-      if (!server.authenticate(connection.data.serverUsername, null, iResource))
+      if (!server.isAllowed(connection.data.serverUsername, iResource))
         throw new OSecurityAccessException("User '" + connection.data.serverUsername + "' cannot access to the resource ["
             + iResource + "]. Use another server user or change permission in the file config/orientdb-server-config.xml");
     }
@@ -489,7 +495,7 @@ public class ONetworkProtocolBinary extends OBinaryNetworkProtocolAbstract {
 
           // SERVER AUTHENTICATED, BYPASS SECURITY
           database.resetInitialization();
-          database.setProperty(ODatabase.OPTIONS.SECURITY.toString(), Boolean.FALSE);
+          database.setProperty(ODatabase.OPTIONS.SECURITY.toString(), OSecurityServerUser.class);
           database.open(iUser, iPassword);
         }
       }
@@ -668,8 +674,8 @@ public class ONetworkProtocolBinary extends OBinaryNetworkProtocolAbstract {
         ODocument distributedCfg = null;
         if (plugin != null && plugin instanceof ODistributedServerManager)
           distributedCfg = ((ODistributedServerManager) plugin).getClusterConfiguration();
-
-        channel.writeBytes(distributedCfg != null ? distributedCfg.toStream() : null);
+        
+        channel.writeBytes(distributedCfg != null ? getRecordBytes(distributedCfg) : null);
 
         if (connection.data.protocolVersion >= 14)
           channel.writeString(OConstants.getVersion());
@@ -1455,7 +1461,7 @@ public class ONetworkProtocolBinary extends OBinaryNetworkProtocolAbstract {
 
     } else {
       final ORecord record = connection.database.load(rid, fetchPlanString, ignoreCache, loadTombstones,
-          OStorage.LOCKING_STRATEGY.DEFAULT);
+          OStorage.LOCKING_STRATEGY.NONE);
 
       beginResponse();
       try {

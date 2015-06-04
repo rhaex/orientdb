@@ -30,6 +30,7 @@ import com.orientechnologies.common.concur.lock.ONewLockManager;
 import com.orientechnologies.common.concur.resource.OSharedResourceAdaptiveExternal;
 import com.orientechnologies.common.listener.OProgressListener;
 import com.orientechnologies.common.log.OLogManager;
+import com.orientechnologies.common.serialization.types.OLongSerializer;
 import com.orientechnologies.orient.core.annotation.ODocumentInstance;
 import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import com.orientechnologies.orient.core.db.ODatabase;
@@ -54,6 +55,7 @@ import com.orientechnologies.orient.core.serialization.serializer.stream.OStream
 import com.orientechnologies.orient.core.serialization.serializer.stream.OStreamSerializerAnyStreamable;
 import com.orientechnologies.orient.core.storage.OStorage;
 import com.orientechnologies.orient.core.storage.impl.local.OAbstractPaginatedStorage;
+import com.orientechnologies.orient.core.storage.impl.local.paginated.atomicoperations.OAtomicOperation;
 import com.orientechnologies.orient.core.tx.OTransactionIndexChanges.OPERATION;
 
 /**
@@ -224,7 +226,6 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T> {
         indexEngine.deleteWithoutLoad(name);
         removeValuesContainer();
       } catch (Exception e) {
-        OLogManager.instance().error(this, "Error during deletion of index %s .", name);
       }
 
       indexEngine.create(this.name, indexDefinition, clusterIndexName, valueSerializer, isAutomatic());
@@ -272,25 +273,23 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T> {
       try {
         indexEngine.load(rid, name, indexDefinition, determineValueSerializer(), isAutomatic());
       } catch (Exception e) {
-        OLogManager.instance().error(this, "Error during load of index %s .", e, name != null ? name : "null");
-
-        if (isAutomatic() && getStorage() instanceof OAbstractPaginatedStorage) {
+        OLogManager.instance().error(this, "");
+        if (isAutomatic() && getStorage() instanceof OAbstractPaginatedStorage)
           // AUTOMATIC REBUILD IT
           OLogManager.instance()
               .warn(this, "Cannot load index '%s' from storage (rid=%s): rebuilt it from scratch", getName(), rid);
-          try {
-            indexEngine.deleteWithoutLoad(name);
-            indexEngine.create(name, indexDefinition, getDatabase().getMetadata().getIndexManager().getDefaultClusterName(),
-                determineValueSerializer(), isAutomatic());
+        try {
+          indexEngine.deleteWithoutLoad(name);
+          indexEngine.create(name, indexDefinition, getDatabase().getMetadata().getIndexManager().getDefaultClusterName(),
+              determineValueSerializer(), isAutomatic());
 
-            rebuild();
-          } catch (Throwable t) {
-            OLogManager.instance().error(this,
-                "Cannot rebuild index '%s' from storage (rid=%s) because '" + t + "'. The index will be removed in configuration",
-                e, getName(), rid);
-            // REMOVE IT
-            return false;
-          }
+          rebuild();
+        } catch (Throwable t) {
+          OLogManager.instance().error(this,
+              "Cannot rebuild index '%s' from storage (rid=%s) because '" + t + "'. The index will be removed in configuration", e,
+              getName(), rid);
+          // REMOVE IT
+          return false;
         }
       }
 
@@ -971,15 +970,30 @@ public abstract class OIndexAbstract<T> implements OIndexInternal<T> {
     if (valueContainerAlgorithm.equals(ODefaultIndexFactory.SBTREEBONSAI_VALUE_CONTAINER)) {
       final OStorage storage = getStorage();
       if (storage instanceof OAbstractPaginatedStorage) {
+        final OAtomicOperation atomicOperation = ((OAbstractPaginatedStorage) storage).getAtomicOperationsManager()
+            .getCurrentOperation();
+
         final ODiskCache diskCache = ((OAbstractPaginatedStorage) storage).getDiskCache();
-        try {
-          final String fileName = getName() + OIndexRIDContainer.INDEX_FILE_EXTENSION;
-          if (diskCache.exists(fileName)) {
-            final long fileId = diskCache.openFile(fileName);
-            diskCache.deleteFile(fileId);
+        if (atomicOperation == null) {
+          try {
+            final String fileName = getName() + OIndexRIDContainer.INDEX_FILE_EXTENSION;
+            if (diskCache.exists(fileName)) {
+              final long fileId = diskCache.openFile(fileName);
+              diskCache.deleteFile(fileId);
+            }
+          } catch (IOException e) {
+            OLogManager.instance().error(this, "Can't delete file for value containers", e);
           }
-        } catch (IOException e) {
-          OLogManager.instance().error(this, "Can't delete file for value containers", e);
+        } else {
+          try {
+            final String fileName = getName() + OIndexRIDContainer.INDEX_FILE_EXTENSION;
+            if (atomicOperation.isFileExists(fileName, diskCache)) {
+              final long fileId = atomicOperation.openFile(fileName, diskCache);
+              atomicOperation.deleteFile(fileId, diskCache);
+            }
+          } catch (IOException e) {
+            OLogManager.instance().error(this, "Can't delete file for value containers", e);
+          }
         }
       }
     }

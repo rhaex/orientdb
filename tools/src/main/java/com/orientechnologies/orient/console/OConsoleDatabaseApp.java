@@ -507,6 +507,12 @@ public class OConsoleDatabaseApp extends OrientConsole implements OCommandOutput
     currentDatabase.getLocalCache().invalidate();
   }
 
+  @ConsoleCommand(splitInWords = false, description = "Move vertices to another position (class/cluster)", priority = 8)
+  // EVALUATE THIS BEFORE 'MOVE'
+  public void moveVertex(@ConsoleParameter(name = "command-text", description = "The command text to execute") String iCommandText) {
+    sqlCommand("move", iCommandText, "\nMove vertex command executed with result '%s' in %f sec(s).\n", true);
+  }
+
   @ConsoleCommand(description = "Force calling of JVM Garbage Collection")
   public void gc() {
     System.gc();
@@ -1017,8 +1023,7 @@ public class OConsoleDatabaseApp extends OrientConsole implements OCommandOutput
         return;
     }
 
-    final ORawBuffer buffer = currentDatabase.getStorage()
-        .readRecord(rid, null, false, null, false, OStorage.LOCKING_STRATEGY.DEFAULT).getResult();
+    final ORawBuffer buffer = currentDatabase.getStorage().readRecord(rid, null, false, null).getResult();
 
     if (buffer == null)
       throw new OException("The record has been deleted");
@@ -1881,7 +1886,7 @@ public class OConsoleDatabaseApp extends OrientConsole implements OCommandOutput
     checkForDatabase();
 
     currentRecord = currentDatabase.executeReadRecord(new ORecordId(iRecordId), null, iFetchPlan, true, false,
-        OStorage.LOCKING_STRATEGY.DEFAULT);
+        OStorage.LOCKING_STRATEGY.NONE);
     displayRecord(null);
 
     message("\nOK");
@@ -2264,10 +2269,9 @@ public class OConsoleDatabaseApp extends OrientConsole implements OCommandOutput
   private void browseRecords(final int limit, final OIdentifiableIterator<?> it) {
     final OTableFormatter tableFormatter = new OTableFormatter(this).setMaxWidthSize(getWindowSize());
 
-    currentResultSet.clear();
+    setResultset(new ArrayList<OIdentifiable>());
     while (it.hasNext() && currentResultSet.size() <= limit)
       currentResultSet.add(it.next());
-    setResultset(currentResultSet);
 
     tableFormatter.writeRecords(currentResultSet, limit);
   }

@@ -80,7 +80,7 @@ public class OrientVertex extends OrientElement implements OrientExtendedVertex 
       className = checkForClassInSchema(OrientBaseGraph.encodeClassName(className));
 
     rawElement = new ODocument(className == null ? OrientVertexType.CLASS_NAME : className);
-    setProperties(fields);
+    setPropertiesInternal(fields);
   }
 
   public OrientVertex(final OrientBaseGraph graph, final OIdentifiable record) {
@@ -726,7 +726,22 @@ public class OrientVertex extends OrientElement implements OrientExtendedVertex 
   public ORID moveTo(final String iClassName, final String iClusterName) {
     final OrientBaseGraph graph = getGraph();
 
+    if (checkDeletedInTx())
+      throw new IllegalStateException("The vertex " + getIdentity() + " has been deleted");
+
     final ORID oldIdentity = getIdentity().copy();
+
+    final ORecord oldRecord = oldIdentity.getRecord();
+    if (oldRecord == null)
+      throw new IllegalStateException("The vertex " + getIdentity() + " has been deleted");
+
+    graph.autoStartTransaction();
+
+    if (!graph.getRawGraph().getTransaction().isActive())
+      throw new IllegalStateException("Move vertex requires an active transaction to be executed in safe manner");
+
+    // DELETE THE OLD RECORD FIRST TO AVOID ISSUES WITH UNIQUE CONSTRAINTS
+    oldRecord.delete();
 
     final ODocument doc = ((ODocument) rawElement.getRecord()).copy();
 
@@ -789,11 +804,6 @@ public class OrientVertex extends OrientElement implements OrientExtendedVertex 
 
     // FINAL SAVE
     doc.save();
-
-    // DELETE OLD RECORD
-    final ORecord oldRecord = oldIdentity.getRecord();
-    if (oldRecord != null)
-      oldRecord.delete();
 
     return newIdentity;
   }
@@ -871,9 +881,15 @@ public class OrientVertex extends OrientElement implements OrientExtendedVertex 
     if (inVertex == null)
       throw new IllegalArgumentException("destination vertex is null");
 
+    if (checkDeletedInTx())
+      throw new IllegalStateException("The vertex " + getIdentity() + " has been deleted");
+
+    if (inVertex.checkDeletedInTx())
+      throw new IllegalStateException("The vertex " + inVertex.getIdentity() + " has been deleted");
     final OrientBaseGraph graph = getGraph();
     if (graph != null) {
       setCurrentGraphInThreadLocal();
+
       graph.autoStartTransaction();
     }
 
