@@ -3,7 +3,7 @@
   <parent>
     <artifactId>orientdb-parent</artifactId>
     <groupId>com.orientechnologies</groupId>
-    <version>2.1.5-SNAPSHOT</version>
+    <version>2.1.5.beeyond-SNAPSHOT</version>
   </parent>
   <modelVersion>4.0.0</modelVersion>
   <artifactId>orientdb-etl</artifactId>
@@ -53,7 +53,7 @@
     <dependency>
       <groupId>com.orientechnologies</groupId>
       <artifactId>orientdb-test-commons</artifactId>
-      <version>2.1.5-SNAPSHOT</version>
+      <version>2.1.5.beeyond-SNAPSHOT</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>
@@ -85,25 +85,25 @@
     <dependency>
       <groupId>com.orientechnologies</groupId>
       <artifactId>orientdb-core</artifactId>
-      <version>2.1.5-SNAPSHOT</version>
+      <version>2.1.5.beeyond-SNAPSHOT</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.orientechnologies</groupId>
       <artifactId>orientdb-client</artifactId>
-      <version>2.1.5-SNAPSHOT</version>
+      <version>2.1.5.beeyond-SNAPSHOT</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.orientechnologies</groupId>
       <artifactId>orientdb-enterprise</artifactId>
-      <version>2.1.5-SNAPSHOT</version>
+      <version>2.1.5.beeyond-SNAPSHOT</version>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>com.orientechnologies</groupId>
       <artifactId>orientdb-graphdb</artifactId>
-      <version>2.1.5-SNAPSHOT</version>
+      <version>2.1.5.beeyond-SNAPSHOT</version>
       <scope>compile</scope>
     </dependency>
   </dependencies>
