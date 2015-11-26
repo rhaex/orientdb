@@ -476,6 +476,15 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
   @Override
   public void onDrop(final ODatabaseInternal iDatabase) {
     super.onDrop(iDatabase);
+
+    final String dbName = iDatabase.getName();
+
+    getConfigurationMap().remove(OHazelcastPlugin.CONFIG_DBSTATUS_PREFIX + getLocalNodeName() + "." + dbName);
+
+    final int availableNodes = getAvailableNodes(dbName);
+    if (availableNodes == 0)
+      // LAST NODE HOLDING THE DATABASE, DELETE DISTRIBUTED CFG TOO
+      getConfigurationMap().remove(OHazelcastPlugin.CONFIG_DATABASE_PREFIX + dbName);
   }
 
   @SuppressWarnings("unchecked")
@@ -504,7 +513,7 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
       if (!queueName.startsWith(OHazelcastDistributedMessageService.NODE_QUEUE_PREFIX))
         continue;
 
-      final IQueue<Object> queue = hazelcastInstance.getQueue(queueName);
+      final IQueue queue = hazelcastInstance.getQueue(queueName);
 
       final String[] names = queueName.split("\\.");
 
@@ -737,12 +746,10 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
 
   @Override
   public void mapEvicted(MapEvent event) {
-
   }
 
   @Override
   public void mapCleared(MapEvent event) {
-
   }
 
   @Override
@@ -976,7 +983,7 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
     Orient.instance().unregisterStorageByName(iDatabaseName);
 
     final String backupDirectory = OGlobalConfiguration.DISTRIBUTED_BACKUP_DIRECTORY.getValueAsString();
-    if (backupDirectory == null)
+    if (backupDirectory == null || backupDirectory.trim().isEmpty())
       // SKIP BACKUP
       return;
 
@@ -1245,8 +1252,11 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
         }
       }
 
-      if (distributedCfgDirty)
-        updateCachedDatabaseConfiguration(databaseName, cfg.serialize(), true, true);
+      if (distributedCfgDirty) {
+        final boolean deployToCluster = isNodeOnline(getLocalNodeName(), databaseName);
+
+        updateCachedDatabaseConfiguration(databaseName, cfg.serialize(), true, deployToCluster);
+      }
 
     } finally {
       lock.unlock();
@@ -1641,7 +1651,7 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
     return this;
   }
 
-  public void unjoinNode(final String iNode) {
+  public void disconnectNode(final String iNode) {
     final Set<String> databases = new HashSet<String>();
 
     for (Map.Entry<String, Object> entry : getConfigurationMap().entrySet()) {
@@ -1659,8 +1669,9 @@ public class OHazelcastPlugin extends ODistributedAbstractPlugin
       getConfigurationMap().put(k, DB_STATUS.OFFLINE);
 
     // GET THE SENDER'S RESPONSE QUEUE
-    final IQueue<ODistributedResponse> queue = messageService
-        .getQueue(OHazelcastDistributedMessageService.getResponseQueueName(iNode));
+    final IQueue queue = messageService.getQueue(OHazelcastDistributedMessageService.getResponseQueueName(iNode));
+
+    ODistributedServerLog.warn(this, nodeName, null, DIRECTION.NONE, "sending request of restarting node '%s'...", iNode);
 
     final OHazelcastDistributedResponse response = new OHazelcastDistributedResponse(-1, nodeName, iNode, new ORestartNodeTask());
 
