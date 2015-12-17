@@ -26,9 +26,9 @@ import com.orientechnologies.orient.core.config.OGlobalConfiguration;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ConcurrentMap;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static com.orientechnologies.orient.core.config.OGlobalConfiguration.PROFILER_MAXVALUES;
@@ -131,12 +131,34 @@ public class OProfilerStub extends OAbstractProfiler {
       oldValue = counters.get(statName);
 
       if (oldValue == null) {
-        counters.putIfAbsent(statName, 0L);
+        if (!counters.containsKey(statName))
+          counters.put(statName, 0L);
         oldValue = counters.get(statName);
       }
 
       newValue = oldValue + plus;
-    } while (!counters.replace(statName, oldValue, newValue));
+    } while (!replace(statName, oldValue, newValue));
+  }
+
+  /**
+   * utility method that mimic java8 map.replace call.
+   * Code copied from jdk
+   * TODO: replace with java8 call when we switch
+   * @param key
+   * @param oldValue
+   * @param newValue
+   * @return
+   */
+  private boolean replace(String key,Long oldValue, Long  newValue) {
+
+    Object curValue = counters.get(key);
+    if (!Objects.equals(curValue, oldValue) ||
+        (curValue == null && !counters.containsKey(key))) {
+      return false;
+    }
+    counters.put(key, newValue);
+    return true;
+
   }
 
   public long getCounter(final String statName) {
