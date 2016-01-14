@@ -15,7 +15,7 @@
 
     <groupId>com.orientechnologies</groupId>
     <artifactId>orientdb-parent</artifactId>
-    <version>2.1.10-SNAPSHOT</version>
+    <version>2.1.10.beeyond-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>OrientDB</name>
@@ -121,15 +121,16 @@
         <url>http://helios.orientdb.com/</url>
     </ciManagement>
     <distributionManagement>
+        <!-- add user/password in maven settings.xml file -->
         <repository>
-            <id>sonatype-nexus-staging</id>
-            <name>OrientDB Maven2 Repository</name>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
+            <id>deployment</id>
+            <name>Internal Releases</name>
+            <url>http://nexus.abacus.nl:9081/nexus/content/repositories/releases/</url>
         </repository>
         <snapshotRepository>
-            <id>sonatype-nexus-snapshots</id>
-            <name>OrientDB Maven2 Snapshot Repository</name>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <id>deployment</id>
+            <name>Internal Releases</name>
+            <url>http://nexus.abacus.nl:9081/nexus/content/repositories/snapshots/</url>
         </snapshotRepository>
     </distributionManagement>
     <repositories>
