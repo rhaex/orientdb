@@ -71,13 +71,13 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.locks.ReentrantLock;
@@ -101,7 +101,7 @@ public class OServer {
   protected OConfigurableHooksManager                      hookManager;
   protected ODistributedServerManager                      distributedManager;
   private OPartitionedDatabasePoolFactory                  dbPoolFactory;
-  private Random                                           random                 = new Random();
+  private SecureRandom                                     random                 = new SecureRandom();
   private Map<String, Object>                              variables              = new HashMap<String, Object>();
   private String                                           serverRootDirectory;
   private String                                           databaseDirectory;
@@ -676,9 +676,12 @@ public class OServer {
     else
       configuration.users = Arrays.copyOf(configuration.users, configuration.users.length + 1);
 
-    if (iPassword == null)
+    if (iPassword == null) {
       // AUTO GENERATE PASSWORD
-      iPassword = OSecurityManager.instance().digest2String(String.valueOf(random.nextLong()), false);
+      final byte[] buffer = new byte[32];
+      random.nextBytes(buffer);
+      iPassword = OSecurityManager.instance().createSHA256(OSecurityManager.byteArrayToHexStr(buffer));
+    }
 
     configuration.users[configuration.users.length - 1] = new OServerUserConfiguration(iName, iPassword, iPermissions);
 

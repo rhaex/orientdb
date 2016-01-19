@@ -877,8 +877,10 @@ public class OClassImpl extends ODocumentWrapperNoClass implements OClass {
       final Collection<Integer> coll = document.field("clusterIds");
       clusterIds = new int[coll.size()];
       int i = 0;
-      for (final Integer item : coll)
-        clusterIds[i++] = item;
+      for (final Integer item : coll) {
+        if (item.intValue() != -1 || coll.size() < 2)
+          clusterIds[i++] = item;
+      }
     } else
       clusterIds = (int[]) cc;
     Arrays.sort(clusterIds);
@@ -1027,6 +1029,10 @@ public class OClassImpl extends ODocumentWrapperNoClass implements OClass {
   public OClass addClusterId(final int clusterId) {
     getDatabase().checkSecurity(ORule.ResourceGeneric.SCHEMA, ORole.PERMISSION_UPDATE);
 
+    if (isAbstract()) {
+      throw new OSchemaException("Impossible to associate a cluster to an abstract class class");
+    }
+
     acquireSchemaWriteLock();
     try {
 
@@ -1065,6 +1071,10 @@ public class OClassImpl extends ODocumentWrapperNoClass implements OClass {
   @Override
   public OClass addCluster(final String clusterNameOrId) {
     getDatabase().checkSecurity(ORule.ResourceGeneric.SCHEMA, ORole.PERMISSION_UPDATE);
+
+    if (isAbstract()) {
+      throw new OSchemaException("Impossible to associate a cluster to an abstract class class");
+    }
 
     acquireSchemaWriteLock();
     try {
@@ -1618,6 +1628,13 @@ public class OClassImpl extends ODocumentWrapperNoClass implements OClass {
 
     final OPropertyImpl prop;
 
+    //This check are doubled becouse used by sql commands
+    if (linkedType != null)
+      OPropertyImpl.checkLinkTypeSupport(type);
+
+    if (linkedClass != null)
+      OPropertyImpl.checkSupportLinkedClass(type);
+
     acquireSchemaWriteLock();
     try {
       checkEmbedded();
@@ -2116,7 +2133,7 @@ public class OClassImpl extends ODocumentWrapperNoClass implements OClass {
     return clId;
   }
 
-  private OClass addClusterIdInternal(final int clusterId) {
+  protected OClass addClusterIdInternal(final int clusterId) {
     acquireSchemaWriteLock();
     try {
       checkEmbedded();
@@ -2273,6 +2290,12 @@ public class OClassImpl extends ODocumentWrapperNoClass implements OClass {
 
     final ODatabaseDocumentInternal database = getDatabase();
     database.checkSecurity(ORule.ResourceGeneric.SCHEMA, ORole.PERMISSION_UPDATE);
+
+    if (linkedType != null)
+      OPropertyImpl.checkLinkTypeSupport(type);
+
+    if (linkedClass != null)
+      OPropertyImpl.checkSupportLinkedClass(type);
 
     OProperty property = null;
     acquireSchemaWriteLock();
