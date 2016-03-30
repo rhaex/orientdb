@@ -2628,7 +2628,7 @@ public class ODatabaseDocumentTx extends OListenerManger<ODatabaseListener>imple
               deletedInTx++;
           }
         }
-        if (op.type == ORecordOperation.CREATED) {
+        if (op.type == ORecordOperation.CREATED){
           final ORecord rec = op.getRecord();
           if (rec != null && rec instanceof ODocument) {
             if (((ODocument) rec).getSchemaClass().isSubClassOf(iClassName))

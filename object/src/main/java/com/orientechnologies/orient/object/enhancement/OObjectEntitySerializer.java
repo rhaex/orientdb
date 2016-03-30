@@ -16,6 +16,33 @@
  */
 package com.orientechnologies.orient.object.enhancement;
 
+import java.lang.annotation.Annotation;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
+import javassist.util.proxy.Proxy;
+import javassist.util.proxy.ProxyObject;
+
+import javax.persistence.CascadeType;
+import javax.persistence.FetchType;
+import javax.persistence.ManyToMany;
+import javax.persistence.ManyToOne;
+import javax.persistence.OneToMany;
+import javax.persistence.OneToOne;
+
 import com.orientechnologies.common.log.OLogManager;
 import com.orientechnologies.common.reflection.OReflectionHelper;
 import com.orientechnologies.orient.core.Orient;
@@ -99,6 +126,7 @@ public class OObjectEntitySerializer {
     public final HashMap<Class<?>, Field>                boundDocumentFields = new HashMap<Class<?>, Field>();
     public final HashMap<Class<?>, List<String>>         transientFields     = new HashMap<Class<?>, List<String>>();
     public final HashMap<Class<?>, List<String>>         cascadeDeleteFields = new HashMap<Class<?>, List<String>>();
+    public final HashMap<Class<?>, List<String>>         fetchLazyFields     = new HashMap<Class<?>, List<String>>();
     public final HashMap<Class<?>, Map<Field, Class<?>>> serializedFields    = new HashMap<Class<?>, Map<Field, Class<?>>>();
     public final HashMap<Class<?>, Field>                fieldIds            = new HashMap<Class<?>, Field>();
     public final HashMap<Class<?>, Field>                fieldVersions       = new HashMap<Class<?>, Field>();
@@ -243,7 +271,7 @@ public class OObjectEntitySerializer {
    *          and @Version fields it could procude data replication
    * @return the object serialized or with detached data
    */
-  public static <T> T detachAll(T o, ODatabaseObject db, boolean returnNonProxiedInstance, Map<Object, Object> alreadyDetached) {
+  public static <T> T detachAll(T o, ODatabaseObject db, boolean returnNonProxiedInstance, Map<Object, Object> alreadyDetached, Map<Object, Object> lazyObjects) {
     if (o instanceof Proxy) {
       OObjectProxyMethodHandler handler = (OObjectProxyMethodHandler) ((ProxyObject) o).getHandler();
       try {
@@ -258,7 +286,7 @@ public class OObjectEntitySerializer {
             return (T) alreadyDetached.get(identity);
           }
         }
-        handler.detachAll(o, returnNonProxiedInstance, alreadyDetached);
+        handler.detachAll(o, returnNonProxiedInstance, alreadyDetached, lazyObjects);
       } catch (IllegalArgumentException e) {
         throw new OSerializationException("Error detaching object of class " + o.getClass(), e);
       } catch (IllegalAccessException e) {
@@ -387,6 +415,18 @@ public class OObjectEntitySerializer {
     return isTransientField;
   }
 
+  public static boolean isFetchLazyField(Class<?> iClass, String iField) {
+    checkClassRegistration(iClass);
+    boolean isFetchLazyField = false;
+    for (Class<?> currentClass = iClass; currentClass != null && currentClass != Object.class
+        && !currentClass.equals(ODocument.class) && !isFetchLazyField;) {
+      List<String> classFetchLazyFields = getCurrentSerializedSchema().fetchLazyFields.get(currentClass);
+      isFetchLazyField = classFetchLazyFields != null && classFetchLazyFields.contains(iField);
+      currentClass = currentClass.getSuperclass();
+    }
+    return isFetchLazyField;
+  }
+
   public static boolean isEmbeddedField(Class<?> iClass, String iField) {
     final OObjectEntitySerializedSchema serializedSchema = getCurrentSerializedSchema();
     if (serializedSchema == null)
@@ -508,6 +548,9 @@ public class OObjectEntitySerializer {
               OneToOne oneToOne = ((OneToOne) ann);
               if (checkCascadeDelete(oneToOne)) {
                 addCascadeDeleteField(currentClass, fieldName);
+              }
+              if (checkFetchLazy(oneToOne)) {
+                addFetchLazyField(currentClass, fieldName);
               }
             }
           }
@@ -701,6 +744,10 @@ public class OObjectEntitySerializer {
     return false;
   }
 
+  protected static boolean checkFetchLazy(final OneToOne oneToOne) {
+    return oneToOne.fetch() == FetchType.LAZY;
+  }
+
   protected static void addCascadeDeleteField(final Class<?> currentClass, final String fieldName) {
     final OObjectEntitySerializedSchema serializedSchema = getCurrentSerializedSchema();
     if (serializedSchema == null)
@@ -711,6 +758,15 @@ public class OObjectEntitySerializer {
       classCascadeDeleteFields = new ArrayList<String>();
     classCascadeDeleteFields.add(fieldName);
     serializedSchema.cascadeDeleteFields.put(currentClass, classCascadeDeleteFields);
+  }
+
+  protected static void addFetchLazyField(Class<?> currentClass, final String fieldName) {
+    OObjectEntitySerializedSchema serializedSchema = getCurrentSerializedSchema();
+    List<String> classFetchLazyFields = serializedSchema.fetchLazyFields.get(currentClass);
+    if (classFetchLazyFields == null)
+      classFetchLazyFields = new ArrayList<String>();
+    classFetchLazyFields.add(fieldName);
+    serializedSchema.fetchLazyFields.put(currentClass, classFetchLazyFields);
   }
 
   public static boolean isSerializedType(final Field iField) {
