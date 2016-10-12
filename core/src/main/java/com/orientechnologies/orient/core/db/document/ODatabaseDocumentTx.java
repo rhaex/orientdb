@@ -2600,7 +2600,7 @@ public class ODatabaseDocumentTx extends OListenerManger<ODatabaseListener> impl
             }
           }
         }
-        if (op.type == ORecordOperation.CREATED) {
+        if (op.type == ORecordOperation.CREATED){
           final ORecord rec = op.getRecord();
           if (rec != null && rec instanceof ODocument) {
             OClass schemaClass = ((ODocument) rec).getSchemaClass();
