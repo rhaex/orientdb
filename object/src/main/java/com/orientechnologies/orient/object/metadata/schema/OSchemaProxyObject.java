@@ -261,6 +261,10 @@ public class OSchemaProxyObject implements OSchema {
     }
   }
 
+  public synchronized void generateSchema(final Class<?> iClass, boolean forceReload) {
+    generateSchema(iClass, ODatabaseRecordThreadLocal.INSTANCE.get(), forceReload);
+  }
+
   /**
    * Generate/updates the SchemaClass and properties from given Class<?>.
    * 
@@ -271,16 +275,20 @@ public class OSchemaProxyObject implements OSchema {
     generateSchema(iClass, ODatabaseRecordThreadLocal.INSTANCE.get());
   }
 
-  /**
-   * Generate/updates the SchemaClass and properties from given Class<?>.
-   * 
-   * @param iClass
-   *          :- the Class<?> to generate
-   */
   public synchronized void generateSchema(final Class<?> iClass, ODatabaseDocument database) {
+    generateSchema(iClass, database, true);
+  }
+
+    /**
+     * Generate/updates the SchemaClass and properties from given Class<?>.
+     *
+     * @param iClass
+     *          :- the Class<?> to generate
+     */
+  public synchronized void generateSchema(final Class<?> iClass, ODatabaseDocument database, boolean forceReload) {
     if (iClass == null || iClass.isInterface() || iClass.isPrimitive() || iClass.isEnum() || iClass.isAnonymousClass())
       return;
-    OObjectEntitySerializer.registerClass(iClass);
+    OObjectEntitySerializer.registerClass(iClass, forceReload);
     OClass schema = database.getMetadata().getSchema().getClass(iClass);
     if (schema == null) {
       generateOClass(iClass, database);

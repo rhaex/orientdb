@@ -190,7 +190,7 @@ public class OEntityManager {
     }
   }
 
-  protected synchronized void registerEntityClasses(final List<Class<?>> classes) {
+  public synchronized void registerEntityClasses(final List<Class<?>> classes) {
     for (Class<?> c : classes) {
       if (!classHandler.containsEntityClass(c)) {
         if (c.isAnonymousClass()) {
