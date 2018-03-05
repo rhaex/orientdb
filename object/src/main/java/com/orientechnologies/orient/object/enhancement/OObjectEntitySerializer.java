@@ -570,6 +570,9 @@ public class OObjectEntitySerializer {
               if (checkCascadeDelete(oneToMany)) {
                 addCascadeDeleteField(currentClass, fieldName);
               }
+              if (checkFetchLazy(oneToMany)) {
+                addFetchLazyField(currentClass, fieldName);
+              }
             }
           }
 
@@ -752,6 +755,10 @@ public class OObjectEntitySerializer {
 
   protected static boolean checkFetchLazy(final OneToOne oneToOne) {
     return oneToOne.fetch() == FetchType.LAZY;
+  }
+
+  protected static boolean checkFetchLazy(final OneToMany oneToMany) {
+    return oneToMany.fetch() == FetchType.LAZY;
   }
 
   protected static void addCascadeDeleteField(final Class<?> currentClass, final String fieldName) {

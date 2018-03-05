@@ -162,9 +162,50 @@ public class OObjectProxyMethodHandler implements MethodHandler {
       if (field != null) {
         Object value = getValue(self, fieldName, false, null, true);
         if (value instanceof OObjectLazyMultivalueElement) {
-          ((OObjectLazyMultivalueElement<?>) value).detachAll(nonProxiedInstance, alreadyDetached, lazyObjects);
-          if (nonProxiedInstance)
+          if (OObjectEntitySerializer.isFetchLazyField(self.getClass(), fieldName) && nonProxiedInstance){
+            // TODO fix properly
             value = ((OObjectLazyMultivalueElement<?>) value).getNonOrientInstance();
+            if(value instanceof List){
+              List lazyList = new ArrayList();
+              for(Object attached : (List)value){
+                if(attached instanceof Proxy){
+                  OObjectProxyMethodHandler handler = (OObjectProxyMethodHandler) ((ProxyObject) attached).getHandler();
+                  Object lazyValue = lazyObjects.get(handler.doc.getIdentity());
+                  Object newValue = OObjectEntitySerializer.getNonProxiedInstance(attached);
+                  if (lazyValue != null) {
+                    newValue = lazyValue;
+                  } else {
+                    OObjectEntitySerializer.setIdField(newValue.getClass(), newValue, handler.doc.getIdentity());
+                    lazyObjects.put(handler.doc.getIdentity(), newValue);
+                  }
+                  lazyList.add(newValue);
+                }
+              }
+              value = lazyList;
+            }else if(value instanceof Set){
+              Set lazySet = new HashSet();
+              for(Object attached : (Set)value){
+                if(attached instanceof Proxy){
+                  OObjectProxyMethodHandler handler = (OObjectProxyMethodHandler) ((ProxyObject) attached).getHandler();
+                  Object lazyValue = lazyObjects.get(handler.doc.getIdentity());
+                  Object newValue = OObjectEntitySerializer.getNonProxiedInstance(attached);
+                  if (lazyValue != null) {
+                    newValue = lazyValue;
+                  } else {
+                    OObjectEntitySerializer.setIdField(newValue.getClass(), newValue, handler.doc.getIdentity());
+                    lazyObjects.put(handler.doc.getIdentity(), newValue);
+                  }
+                  lazySet.add(newValue);
+                }
+              }
+              value = lazySet;
+            }
+          }else {
+            ((OObjectLazyMultivalueElement<?>) value).detachAll(nonProxiedInstance, alreadyDetached, lazyObjects);
+            if(nonProxiedInstance) {
+              value = ((OObjectLazyMultivalueElement<?>) value).getNonOrientInstance();
+            }
+          }
         } else if (value instanceof Proxy) {
           OObjectProxyMethodHandler handler = (OObjectProxyMethodHandler) ((ProxyObject) value).getHandler();
           if (nonProxiedInstance) {
